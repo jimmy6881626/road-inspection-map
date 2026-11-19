@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>現場勘查與設施照片即時圖台</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; width: 100%; height: 100%; font-family: "Microsoft JhengHei", sans-serif; }
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; font-family: "Microsoft JhengHei", sans-serif; background: #f0f2f5; }
     #map { width: 100%; height: 100%; }
     .top-bar {
       position: fixed; top: 12px; left: 52px; right: 12px; z-index: 1000;
@@ -18,7 +18,7 @@
       box-shadow: 0 2px 10px rgba(0,0,0,0.25); pointer-events: auto;
       display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px;
     }
-    .panel input { border: 1px solid #ccc; border-radius: 6px; padding: 6px 8px; width: 150px; font-size: 14px; }
+    .panel input { border: 1px solid #ccc; border-radius: 6px; padding: 6px 8px; width: 160px; font-size: 14px; }
     .btn-sync {
       background: #1a73e8; color: #fff; border: none; border-radius: 6px;
       padding: 6px 12px; font-weight: bold; cursor: pointer;
@@ -45,34 +45,48 @@
 <div class="top-bar">
   <div class="panel">
     <strong>📍 現場照片圖台</strong>
-    <span id="status" style="color:#188038; font-weight:bold;">載入中...</span>
+    <span id="status" style="color:#1a73e8; font-weight:bold;">啟動中...</span>
     <input type="text" id="keyword" placeholder="搜尋地點/說明/位置..." oninput="renderFiltered()">
     <button class="btn-sync" onclick="fetchSheetData()">🔄 立即同步</button>
   </div>
 </div>
 <div id="map"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   const SHEET_ID = "1OVD7hSkHN7Vqzt75AMCkUexwNlQeOQa0YBaBBGCmmCI";
   const SHEET_NAME = "Form_Responses";
 
-  const map = L.map('map').setView([23.31, 120.31], 11);
-  const streets = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 20 });
-  const hybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 20 });
-  streets.addTo(map);
-  L.control.layers({ "街道圖": streets, "衛星圖": hybrid }).addTo(map);
-
+  let map = null;
+  let layerGroup = null;
   let records = [];
-  let layerGroup = L.layerGroup().addTo(map);
+
+  function initMap() {
+    const statusEl = document.getElementById('status');
+    if (typeof L === 'undefined') {
+      statusEl.style.color = '#d93025';
+      statusEl.innerText = '地圖元件無法載入（請檢查網路是否封鎖 jsdelivr）';
+      return false;
+    }
+    map = L.map('map').setView([23.31, 120.31], 11);
+    const streets = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 20 });
+    const hybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 20 });
+    streets.addTo(map);
+    L.control.layers({ "街道圖": streets, "衛星圖": hybrid }).addTo(map);
+    layerGroup = L.layerGroup().addTo(map);
+    return true;
+  }
 
   async function fetchSheetData() {
     const statusEl = document.getElementById('status');
-    statusEl.innerText = "同步中...";
+    statusEl.style.color = '#1a73e8';
+    statusEl.innerText = "讀取試算表中...";
+
     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
     
     try {
       const res = await fetch(url);
+      if (!res.ok) throw new Error("HTTP " + res.status);
       const text = await res.text();
       const json = JSON.parse(text.substring(47).slice(0, -2));
       const rows = json.table.rows;
@@ -100,11 +114,13 @@
 
       drawMarkers(records, true);
     } catch (e) {
-      statusEl.innerText = "讀取失敗，請確認試算表已開啟檢視權限";
+      statusEl.style.color = '#d93025';
+      statusEl.innerText = "無法讀取試算表（請確認試算表右上角已設為「知道連結的任何人檢視」）";
     }
   }
 
   function drawMarkers(list, fit) {
+    if (!layerGroup) return;
     layerGroup.clearLayers();
     const bounds = [];
 
@@ -131,7 +147,10 @@
       bounds.push([item.lat, item.lon]);
     });
 
-    document.getElementById('status').innerText = `共 ${bounds.length} 筆`;
+    const statusEl = document.getElementById('status');
+    statusEl.style.color = '#188038';
+    statusEl.innerText = `共 ${bounds.length} 筆`;
+
     if (fit && bounds.length > 0) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
     }
@@ -152,7 +171,9 @@
     return String(s).replace(/[&<>"']/g, m => ({'&':'&','<':'<','>':'>','"':'"',"'":'''}[m]));
   }
 
-  fetchSheetData();
+  if (initMap()) {
+    fetchSheetData();
+  }
 </script>
 </body>
 </html>
