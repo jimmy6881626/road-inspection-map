@@ -61,7 +61,7 @@
   <div class="header-top">
     <h1>📍 現場勘查即時圖台</h1>
     <span class="badge" id="status">讀取中...</span>
-    <input type="text" class="search-box" id="kw" placeholder="搜尋地點、位置或說明..." oninput="render()">
+    <input type="text" class="search-box" id="kw" placeholder="搜尋說明、位置或拍攝日期..." oninput="render()">
     <button class="btn-sync" onclick="loadData()">🔄 立即同步</button>
   </div>
   <div class="cat-bar" id="catBar"></div>
@@ -95,7 +95,7 @@
     }
   }
 
- function buildCategoryButtons() {
+  function buildCategoryButtons() {
     const preset = ["全部", "橋梁", "綠美化", "路容", "交通(標誌牌面)", "交通(標線)", "照明", "邊坡", "排水", "坑洞", "公路養護", "其他"];
     const dynamicCats = [...new Set(allPoints.map(p => p.category).filter(c => c && !preset.includes(c)))];
     const cats = [...preset, ...dynamicCats];
@@ -115,7 +115,7 @@
     const kw = document.getElementById('kw').value.trim().toLowerCase();
     const list = allPoints.filter(p => {
       const matchCat = (selectedCat === "全部") || (p.category === selectedCat);
-      const matchKw = !kw || (p.title + p.desc + p.date + p.address + p.category).toLowerCase().includes(kw);
+      const matchKw = !kw || (p.desc + p.date + p.address + p.category).toLowerCase().includes(kw);
       return matchCat && matchKw;
     });
 
@@ -128,7 +128,6 @@
     }
 
     grid.innerHTML = list.map(p => {
-      const combinedTitle = `${esc(p.title)}｜${esc(p.desc)}`;
       const gmapUrl = `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lon}`;
       const photos = p.photos || [];
       const photoHtml = photos.length > 0 ? `
@@ -147,14 +146,12 @@
           ${photoHtml}
           <div class="card-body">
             <div class="card-header-row">
-              <div class="card-title">${combinedTitle}</div>
+              <div class="card-title">${esc(p.desc)}</div>
               <span class="cat-tag">${esc(p.category)}</span>
             </div>
-            <div class="row"><span class="label">📍 地點：</span>${esc(p.title)}</div>
             <div class="row"><span class="label">🗺️ 位置：</span>${esc(p.address)}</div>
             <div class="row"><span class="label">🌐 座標：</span>${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}</div>
-            <div class="row"><span class="label">📅 日期：</span>${esc(p.date)}</div>
-            <div class="row"><span class="label">📝 說明：</span>${esc(p.desc)}</div>
+            <div class="row"><span class="label">📅 拍攝日期：</span>${esc(p.date)}</div>
             <a class="map-link" href="${gmapUrl}" target="_blank">🗺️ 在 Google 地圖開啟定位</a>
           </div>
         </div>
@@ -163,7 +160,7 @@
   }
 
   function esc(s) {
-    return String(s || "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    return String(s || "").replace(/[&<>"']/g, m => ({'&':'&','<':'<','>':'>','"':'"',"'":'''}[m]));
   }
 
   loadData();
