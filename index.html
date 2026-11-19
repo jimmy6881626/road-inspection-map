@@ -2,216 +2,117 @@
 <html lang="zh-TW">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>現場勘查與設施照片即時圖台</title>
   <style>
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; width: 100%; height: 100%; font-family: "Microsoft JhengHei", sans-serif; background: #f4f6f9; }
-    #map { width: 100%; height: 100%; display: block; }
-    .top-bar {
-      position: fixed; top: 12px; left: 52px; right: 12px; z-index: 1000;
-      display: flex; gap: 8px; flex-wrap: wrap; pointer-events: none;
+    body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", sans-serif; background: #f0f2f5; color: #222; }
+    .header {
+      position: sticky; top: 0; z-index: 100; background: #1a73e8; color: #fff;
+      padding: 12px 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
     }
-    .panel {
-      background: rgba(255, 255, 255, 0.97); padding: 8px 14px; border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.25); pointer-events: auto;
-      display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px;
+    .header h1 { margin: 0; font-size: 18px; }
+    .badge { background: rgba(255,255,255,0.2); padding: 3px 10px; border-radius: 12px; font-size: 13px; }
+    .search-box {
+      padding: 7px 12px; border: none; border-radius: 6px; font-size: 14px; flex: 1; min-width: 180px;
     }
-    .panel input { border: 1px solid #ccc; border-radius: 6px; padding: 6px 8px; width: 170px; font-size: 14px; }
-    .btn-sync {
-      background: #1a73e8; color: #fff; border: none; border-radius: 6px;
-      padding: 6px 12px; font-weight: bold; cursor: pointer;
+    .btn {
+      background: #fff; color: #1a73e8; border: none; border-radius: 6px;
+      padding: 7px 14px; font-weight: bold; cursor: pointer; font-size: 14px;
     }
-    .popup-card { width: 265px; line-height: 1.55; font-size: 13px; }
-    .popup-title {
-      margin: 0 0 8px 0; font-size: 15px; font-weight: bold; color: #1a73e8;
-      border-bottom: 2px solid #1a73e8; padding-bottom: 4px;
+    .container { max-width: 1200px; margin: 16px auto; padding: 0 16px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 16px; }
+    .card {
+      background: #fff; border-radius: 10px; overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; flex-direction: column;
     }
-    .popup-card img {
-      width: 100%; max-height: 170px; object-fit: cover; border-radius: 6px;
-      margin-bottom: 8px; border: 1px solid #ddd; display: block;
-    }
-    .info-row { margin-bottom: 3px; color: #333; }
-    .info-label { font-weight: bold; color: #555; }
-    .nav-btn {
-      display: block; text-align: center; background: #34a853; color: #fff !important;
-      text-decoration: none; padding: 7px; border-radius: 6px; font-weight: bold; margin-top: 8px;
-    }
-    /* 備援卡片清單樣式（僅在內網封鎖所有地圖 CDN 時自動啟用） */
-    #fallback-list {
-      display: none; padding: 70px 16px 20px 16px; max-width: 900px; margin: 0 auto;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;
-    }
-    .fallback-card {
-      background: #fff; border-radius: 10px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    .card img { width: 100%; height: 210px; object-fit: cover; background: #eee; border-bottom: 1px solid #eee; }
+    .card-body { padding: 14px; flex: 1; display: flex; flex-direction: column; }
+    .card-title { font-size: 16px; font-weight: bold; color: #1a73e8; margin: 0 0 8px 0; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+    .row { font-size: 13px; margin-bottom: 5px; line-height: 1.5; }
+    .label { font-weight: bold; color: #555; }
+    .map-link {
+      margin-top: auto; display: block; text-align: center; background: #34a853; color: #fff;
+      text-decoration: none; padding: 9px; border-radius: 6px; font-weight: bold; font-size: 14px;
     }
   </style>
 </head>
 <body>
 
-<div class="top-bar">
-  <div class="panel">
-    <strong>📍 現場照片圖台</strong>
-    <span id="status" style="color:#1a73e8; font-weight:bold;">初始化中...</span>
-    <input type="text" id="keyword" placeholder="搜尋地點/說明/位置..." oninput="renderFiltered()">
-    <button class="btn-sync" onclick="fetchSheetData()">🔄 立即同步</button>
-  </div>
+<div class="header">
+  <h1>📍 現場勘查與設施照片即時圖台</h1>
+  <span class="badge" id="status">準備讀取...</span>
+  <input type="text" class="search-box" id="kw" placeholder="搜尋地點、位置、日期或說明..." oninput="render()">
+  <button class="btn" onclick="loadData()">🔄 立即同步</button>
 </div>
 
-<div id="map"></div>
-<div id="fallback-list"></div>
+<div class="container">
+  <div class="grid" id="grid"></div>
+</div>
 
 <script>
-  const SHEET_ID = "1OVD7hSkHN7Vqzt75AMCkUexwNlQeOQa0YBaBBGCmmCI";
-  const SHEET_NAME = "Form_Responses";
+  // 請將下方雙引號內的文字替換為您的 Apps Script /exec 網址
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbwCRRutky3s005vMyGbJCeSg5q8OtKu_qTBXqtWDHHehR8yKGfuQ-E2OXsaJP63MJOVrQ/exec";
 
-  let map = null;
-  let layerGroup = null;
-  let records = [];
-  let mapReady = false;
+  let allPoints = [];
 
-  // 多組 CDN 自動輪替載入 Leaflet，避免單一 CDN 被防火牆阻擋
-  const CDNS = [
-    { css: "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", js: "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" },
-    { css: "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css", js: "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" },
-    { css: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css", js: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" }
-  ];
+  async function loadData() {
+    const status = document.getElementById('status');
+    status.innerText = "同步資料中...";
+    try {
+      const res = await fetch(GAS_URL + "?action=data");
+      const json = await res.json();
+      if (json.status === "ok") {
+        allPoints = json.points || [];
+        render();
+      } else {
+        status.innerText = "讀取錯誤：" + json.message;
+      }
+    } catch (err) {
+      status.innerText = "連線異常，請確認已部署新版本";
+    }
+  }
 
-  function loadLeaflet(index) {
-    if (index >= CDNS.length) {
-      // 若所有地圖 CDN 皆被內網封鎖，切換為卡片清單模式並照常讀取試算表
-      document.getElementById('map').style.display = 'none';
-      document.getElementById('fallback-list').style.display = 'grid';
-      fetchSheetData();
+  function render() {
+    const kw = document.getElementById('kw').value.trim().toLowerCase();
+    const list = kw ? allPoints.filter(p =>
+      (p.title + p.desc + p.date + (p.address || "")).toLowerCase().includes(kw)
+    ) : allPoints;
+
+    document.getElementById('status').innerText = `共 ${list.length} 筆資料`;
+    const grid = document.getElementById('grid');
+
+    if (list.length === 0) {
+      grid.innerHTML = "<p>目前沒有符合的巡檢紀錄。</p>";
       return;
     }
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = CDNS[index].css;
-    document.head.appendChild(link);
 
-    const script = document.createElement('script');
-    script.src = CDNS[index].js;
-    script.onload = () => {
-      if (typeof L !== 'undefined') {
-        initMap();
-        fetchSheetData();
-      } else {
-        loadLeaflet(index + 1);
-      }
-    };
-    script.onerror = () => loadLeaflet(index + 1);
-    document.body.appendChild(script);
-  }
-
-  function initMap() {
-    map = L.map('map').setView([23.31, 120.31], 11);
-    const streets = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 20 });
-    const hybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 20 });
-    streets.addTo(map);
-    L.control.layers({ "街道圖": streets, "衛星圖": hybrid }).addTo(map);
-    layerGroup = L.layerGroup().addTo(map);
-    mapReady = true;
-  }
-
-  async function fetchSheetData() {
-    const statusEl = document.getElementById('status');
-    statusEl.style.color = '#1a73e8';
-    statusEl.innerText = "同步資料中...";
-
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
-    
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const text = await res.text();
-      const json = JSON.parse(text.substring(47).slice(0, -2));
-      const rows = json.table.rows;
-
-      records = rows.map(r => {
-        const c = r.c;
-        const getVal = idx => (c[idx] && c[idx].v !== null) ? (c[idx].f || String(c[idx].v)) : "";
-        const lat = c[6] && typeof c[6].v === 'number' ? c[6].v : parseFloat(getVal(6));
-        const lon = c[7] && typeof c[7].v === 'number' ? c[7].v : parseFloat(getVal(7));
-        
-        const rawUrl = getVal(8) || getVal(3);
-        const idMatch = rawUrl.match(/[-\w]{25,}/);
-        return {
-          place: getVal(1) || "未命名地點",
-          desc: getVal(2) || "無說明",
-          date: getVal(4) !== "無GPS資訊" && getVal(4) ? getVal(4) : getVal(0),
-          uploader: getVal(5),
-          lat: lat,
-          lon: lon,
-          address: getVal(9) || "依座標定位",
-          thumbUrl: idMatch ? `https://drive.google.com/thumbnail?id=${idMatch[0]}&sz=w800` : "",
-          origUrl: idMatch ? `https://drive.google.com/file/d/${idMatch[0]}/view` : rawUrl
-        };
-      }).filter(item => !isNaN(item.lat) && !isNaN(item.lon) && item.lon > 118 && item.lon < 123);
-
-      drawMarkers(records, true);
-    } catch (e) {
-      statusEl.style.color = '#d93025';
-      statusEl.innerText = "讀取失敗：請將試算表共用設為「知道連結的任何人檢視」";
-    }
-  }
-
-  function buildCardHtml(item) {
-    const combinedTitle = `${item.place}｜${item.desc}`;
-    return `
-      <div class="popup-title">${esc(combinedTitle)}</div>
-      ${item.thumbUrl ? `<a href="${item.origUrl}" target="_blank"><img src="${item.thumbUrl}" alt="現場照片" style="width:100%;max-height:170px;object-fit:cover;border-radius:6px;margin-bottom:8px;"></a>` : ''}
-      <div class="info-row"><span class="info-label">📍 地點：</span>${esc(item.place)}</div>
-      <div class="info-row"><span class="info-label">🗺️ 位置：</span>${esc(item.address)}</div>
-      <div class="info-row"><span class="info-label">🌐 座標：</span>${item.lat.toFixed(6)}, ${item.lon.toFixed(6)}</div>
-      <div class="info-row"><span class="info-label">📅 日期：</span>${esc(item.date)}</div>
-      <div class="info-row"><span class="info-label">📝 說明：</span>${esc(item.desc)}</div>
-      <a class="nav-btn" href="https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lon}" target="_blank">
-        🧭 開啟 Google 地圖定位
-      </a>
-    `;
-  }
-
-  function drawMarkers(list, fit) {
-    const statusEl = document.getElementById('status');
-    statusEl.style.color = '#188038';
-    statusEl.innerText = `共 ${list.length} 筆`;
-
-    if (mapReady && layerGroup) {
-      layerGroup.clearLayers();
-      const bounds = [];
-      list.forEach(item => {
-        const marker = L.marker([item.lat, item.lon], { title: `${item.place}｜${item.desc}` });
-        marker.bindPopup(`<div class="popup-card">${buildCardHtml(item)}</div>`, { maxWidth: 280 });
-        marker.addTo(layerGroup);
-        bounds.push([item.lat, item.lon]);
-      });
-      if (fit && bounds.length > 0) {
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
-      }
-    } else {
-      const container = document.getElementById('fallback-list');
-      container.innerHTML = list.map(item => `<div class="fallback-card">${buildCardHtml(item)}</div>`).join('');
-    }
-  }
-
-  function renderFiltered() {
-    const kw = document.getElementById('keyword').value.trim().toLowerCase();
-    if (!kw) return drawMarkers(records, false);
-    const filtered = records.filter(r =>
-      r.place.toLowerCase().includes(kw) ||
-      r.desc.toLowerCase().includes(kw) ||
-      r.address.toLowerCase().includes(kw)
-    );
-    drawMarkers(filtered, true);
+    grid.innerHTML = list.map(p => {
+      const combinedTitle = `${esc(p.title)}｜${esc(p.desc)}`;
+      const gmapUrl = `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lon}`;
+      return `
+        <div class="card">
+          ${p.photoUrl ? `<a href="${p.originalLink}" target="_blank"><img src="${p.photoUrl}" alt="現場照片"></a>` : ''}
+          <div class="card-body">
+            <div class="card-title">${combinedTitle}</div>
+            <div class="row"><span class="label">📍 地點：</span>${esc(p.title)}</div>
+            <div class="row"><span class="label">🗺️ 位置：</span>${esc(p.address || "依 GPS 座標定位")}</div>
+            <div class="row"><span class="label">🌐 座標：</span>${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}</div>
+            <div class="row"><span class="label">📅 日期：</span>${esc(p.date)}</div>
+            <div class="row"><span class="label">📝 說明：</span>${esc(p.desc)}</div>
+            <a class="map-link" href="${gmapUrl}" target="_blank">🗺️ 在 Google 地圖開啟定位</a>
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 
   function esc(s) {
-    return String(s).replace(/[&<>"']/g, m => ({'&':'&','<':'<','>':'>','"':'"',"'":'''}[m]));
+    return String(s || "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   }
 
-  // 啟動載入
-  loadLeaflet(0);
+  loadData();
 </script>
 </body>
 </html>
