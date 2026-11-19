@@ -95,8 +95,8 @@
     }
   }
 
-  function buildCategoryButtons() {
-    const preset = ["全部", "橋梁", "綠美化", "路容", "公路養護"];
+ function buildCategoryButtons() {
+    const preset = ["全部", "橋梁", "綠美化", "路容", "交通(標誌牌面)", "交通(標線)", "照明", "邊坡", "排水", "坑洞", "公路養護", "其他"];
     const dynamicCats = [...new Set(allPoints.map(p => p.category).filter(c => c && !preset.includes(c)))];
     const cats = [...preset, ...dynamicCats];
 
