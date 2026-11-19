@@ -159,10 +159,10 @@
     }).join('');
   }
 
-  function esc(s) {
+function esc(s) {
     const d = document.createElement('div');
     d.textContent = String(s || "");
-    return d.innerHTML.replace(/"/g, """);
+    return d.innerHTML.replace(/"/g, String.fromCharCode(34));
   }
 
   loadData();
