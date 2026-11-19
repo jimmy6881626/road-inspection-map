@@ -4,21 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>現場勘查與設施照片即時圖台</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; width: 100%; height: 100%; font-family: "Microsoft JhengHei", sans-serif; background: #f0f2f5; }
-    #map { width: 100%; height: 100%; }
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; font-family: "Microsoft JhengHei", sans-serif; background: #f4f6f9; }
+    #map { width: 100%; height: 100%; display: block; }
     .top-bar {
       position: fixed; top: 12px; left: 52px; right: 12px; z-index: 1000;
       display: flex; gap: 8px; flex-wrap: wrap; pointer-events: none;
     }
     .panel {
-      background: rgba(255, 255, 255, 0.96); padding: 8px 12px; border-radius: 10px;
+      background: rgba(255, 255, 255, 0.97); padding: 8px 14px; border-radius: 10px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.25); pointer-events: auto;
       display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px;
     }
-    .panel input { border: 1px solid #ccc; border-radius: 6px; padding: 6px 8px; width: 160px; font-size: 14px; }
+    .panel input { border: 1px solid #ccc; border-radius: 6px; padding: 6px 8px; width: 170px; font-size: 14px; }
     .btn-sync {
       background: #1a73e8; color: #fff; border: none; border-radius: 6px;
       padding: 6px 12px; font-weight: bold; cursor: pointer;
@@ -38,6 +37,14 @@
       display: block; text-align: center; background: #34a853; color: #fff !important;
       text-decoration: none; padding: 7px; border-radius: 6px; font-weight: bold; margin-top: 8px;
     }
+    /* 備援卡片清單樣式（僅在內網封鎖所有地圖 CDN 時自動啟用） */
+    #fallback-list {
+      display: none; padding: 70px 16px 20px 16px; max-width: 900px; margin: 0 auto;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;
+    }
+    .fallback-card {
+      background: #fff; border-radius: 10px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    }
   </style>
 </head>
 <body>
@@ -45,14 +52,15 @@
 <div class="top-bar">
   <div class="panel">
     <strong>📍 現場照片圖台</strong>
-    <span id="status" style="color:#1a73e8; font-weight:bold;">啟動中...</span>
+    <span id="status" style="color:#1a73e8; font-weight:bold;">初始化中...</span>
     <input type="text" id="keyword" placeholder="搜尋地點/說明/位置..." oninput="renderFiltered()">
     <button class="btn-sync" onclick="fetchSheetData()">🔄 立即同步</button>
   </div>
 </div>
-<div id="map"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<div id="map"></div>
+<div id="fallback-list"></div>
+
 <script>
   const SHEET_ID = "1OVD7hSkHN7Vqzt75AMCkUexwNlQeOQa0YBaBBGCmmCI";
   const SHEET_NAME = "Form_Responses";
@@ -60,27 +68,56 @@
   let map = null;
   let layerGroup = null;
   let records = [];
+  let mapReady = false;
+
+  // 多組 CDN 自動輪替載入 Leaflet，避免單一 CDN 被防火牆阻擋
+  const CDNS = [
+    { css: "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", js: "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" },
+    { css: "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css", js: "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" },
+    { css: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css", js: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" }
+  ];
+
+  function loadLeaflet(index) {
+    if (index >= CDNS.length) {
+      // 若所有地圖 CDN 皆被內網封鎖，切換為卡片清單模式並照常讀取試算表
+      document.getElementById('map').style.display = 'none';
+      document.getElementById('fallback-list').style.display = 'grid';
+      fetchSheetData();
+      return;
+    }
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = CDNS[index].css;
+    document.head.appendChild(link);
+
+    const script = document.createElement('script');
+    script.src = CDNS[index].js;
+    script.onload = () => {
+      if (typeof L !== 'undefined') {
+        initMap();
+        fetchSheetData();
+      } else {
+        loadLeaflet(index + 1);
+      }
+    };
+    script.onerror = () => loadLeaflet(index + 1);
+    document.body.appendChild(script);
+  }
 
   function initMap() {
-    const statusEl = document.getElementById('status');
-    if (typeof L === 'undefined') {
-      statusEl.style.color = '#d93025';
-      statusEl.innerText = '地圖元件無法載入（請檢查網路是否封鎖 jsdelivr）';
-      return false;
-    }
     map = L.map('map').setView([23.31, 120.31], 11);
     const streets = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 20 });
     const hybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 20 });
     streets.addTo(map);
     L.control.layers({ "街道圖": streets, "衛星圖": hybrid }).addTo(map);
     layerGroup = L.layerGroup().addTo(map);
-    return true;
+    mapReady = true;
   }
 
   async function fetchSheetData() {
     const statusEl = document.getElementById('status');
     statusEl.style.color = '#1a73e8';
-    statusEl.innerText = "讀取試算表中...";
+    statusEl.innerText = "同步資料中...";
 
     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
     
@@ -115,44 +152,46 @@
       drawMarkers(records, true);
     } catch (e) {
       statusEl.style.color = '#d93025';
-      statusEl.innerText = "無法讀取試算表（請確認試算表右上角已設為「知道連結的任何人檢視」）";
+      statusEl.innerText = "讀取失敗：請將試算表共用設為「知道連結的任何人檢視」";
     }
   }
 
+  function buildCardHtml(item) {
+    const combinedTitle = `${item.place}｜${item.desc}`;
+    return `
+      <div class="popup-title">${esc(combinedTitle)}</div>
+      ${item.thumbUrl ? `<a href="${item.origUrl}" target="_blank"><img src="${item.thumbUrl}" alt="現場照片" style="width:100%;max-height:170px;object-fit:cover;border-radius:6px;margin-bottom:8px;"></a>` : ''}
+      <div class="info-row"><span class="info-label">📍 地點：</span>${esc(item.place)}</div>
+      <div class="info-row"><span class="info-label">🗺️ 位置：</span>${esc(item.address)}</div>
+      <div class="info-row"><span class="info-label">🌐 座標：</span>${item.lat.toFixed(6)}, ${item.lon.toFixed(6)}</div>
+      <div class="info-row"><span class="info-label">📅 日期：</span>${esc(item.date)}</div>
+      <div class="info-row"><span class="info-label">📝 說明：</span>${esc(item.desc)}</div>
+      <a class="nav-btn" href="https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lon}" target="_blank">
+        🧭 開啟 Google 地圖定位
+      </a>
+    `;
+  }
+
   function drawMarkers(list, fit) {
-    if (!layerGroup) return;
-    layerGroup.clearLayers();
-    const bounds = [];
-
-    list.forEach(item => {
-      const combinedTitle = `${item.place}｜${item.desc}`;
-      const marker = L.marker([item.lat, item.lon], { title: combinedTitle });
-
-      const popupHtml = `
-        <div class="popup-card">
-          <div class="popup-title">${esc(combinedTitle)}</div>
-          ${item.thumbUrl ? `<a href="${item.origUrl}" target="_blank"><img src="${item.thumbUrl}" alt="現場照片"></a>` : ''}
-          <div class="info-row"><span class="info-label">📍 地點：</span>${esc(item.place)}</div>
-          <div class="info-row"><span class="info-label">🗺️ 位置：</span>${esc(item.address)}</div>
-          <div class="info-row"><span class="info-label">🌐 座標：</span>${item.lat.toFixed(6)}, ${item.lon.toFixed(6)}</div>
-          <div class="info-row"><span class="info-label">📅 日期：</span>${esc(item.date)}</div>
-          <div class="info-row"><span class="info-label">📝 說明：</span>${esc(item.desc)}</div>
-          <a class="nav-btn" href="https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lon}" target="_blank">
-            🧭 Google 地圖導航
-          </a>
-        </div>
-      `;
-      marker.bindPopup(popupHtml, { maxWidth: 280 });
-      marker.addTo(layerGroup);
-      bounds.push([item.lat, item.lon]);
-    });
-
     const statusEl = document.getElementById('status');
     statusEl.style.color = '#188038';
-    statusEl.innerText = `共 ${bounds.length} 筆`;
+    statusEl.innerText = `共 ${list.length} 筆`;
 
-    if (fit && bounds.length > 0) {
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+    if (mapReady && layerGroup) {
+      layerGroup.clearLayers();
+      const bounds = [];
+      list.forEach(item => {
+        const marker = L.marker([item.lat, item.lon], { title: `${item.place}｜${item.desc}` });
+        marker.bindPopup(`<div class="popup-card">${buildCardHtml(item)}</div>`, { maxWidth: 280 });
+        marker.addTo(layerGroup);
+        bounds.push([item.lat, item.lon]);
+      });
+      if (fit && bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+      }
+    } else {
+      const container = document.getElementById('fallback-list');
+      container.innerHTML = list.map(item => `<div class="fallback-card">${buildCardHtml(item)}</div>`).join('');
     }
   }
 
@@ -171,9 +210,8 @@
     return String(s).replace(/[&<>"']/g, m => ({'&':'&','<':'<','>':'>','"':'"',"'":'''}[m]));
   }
 
-  if (initMap()) {
-    fetchSheetData();
-  }
+  // 啟動載入
+  loadLeaflet(0);
 </script>
 </body>
 </html>
