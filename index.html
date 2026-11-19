@@ -101,7 +101,7 @@
     const cats = [...preset, ...dynamicCats];
 
     document.getElementById('catBar').innerHTML = cats.map(c =>
-      `<button class="cat-btn ${c === selectedCat ? 'active' : ''}" onclick="selectCat('${esc(c)}')">${esc(c)}</button>`
+      `<button class="cat-btn ${c === selectedCat ? 'active' : ''}" onclick="selectCat(this.dataset.cat)" data-cat="${esc(c)}">${esc(c)}</button>`
     ).join('');
   }
 
@@ -160,7 +160,9 @@
   }
 
   function esc(s) {
-    return String(s || "").replace(/[&<>"']/g, m => ({'&':'&','<':'<','>':'>','"':'"',"'":'''}[m]));
+    const d = document.createElement('div');
+    d.textContent = String(s || "");
+    return d.innerHTML.replace(/"/g, """);
   }
 
   loadData();
