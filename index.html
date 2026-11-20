@@ -18,7 +18,6 @@
       background: #fff; color: #1a73e8; border: none; border-radius: 6px;
       padding: 7px 12px; font-weight: bold; cursor: pointer; font-size: 14px;
     }
-    /* 第一層：狀態切換 Tab */
     .status-tabs { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
     .tab-btn {
       background: rgba(255,255,255,0.16); color: #fff; border: none; border-radius: 8px;
@@ -28,7 +27,6 @@
     .tab-btn.active.pending { color: #d93025; }
     .tab-btn.active.done { color: #188038; }
 
-    /* 第二層：工程類別列 */
     .cat-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
     .cat-btn {
       background: rgba(255,255,255,0.18); color: #fff; border: 1px solid rgba(255,255,255,0.4);
@@ -42,14 +40,23 @@
       background: #fff; border-radius: 10px; overflow: hidden;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; flex-direction: column;
     }
+    /* 照片並排與多圖左右滑動軌道 */
     .photo-compare { display: flex; gap: 2px; background: #ddd; }
-    .photo-box { flex: 1; position: relative; min-width: 0; }
-    .photo-box img { width: 100%; height: 210px; object-fit: cover; display: block; }
+    .photo-strip {
+      flex: 1; display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+      position: relative; min-width: 0; background: #eee;
+    }
+    .photo-strip a { flex: 0 0 100%; scroll-snap-align: start; display: block; position: relative; }
+    .photo-strip img { width: 100%; height: 215px; object-fit: cover; display: block; }
     .photo-badge {
       position: absolute; top: 8px; left: 8px; padding: 2px 8px; border-radius: 4px;
-      font-size: 12px; font-weight: bold; color: #fff; background: rgba(217,48,37,0.85);
+      font-size: 12px; font-weight: bold; color: #fff; background: rgba(217,48,37,0.88); z-index: 2;
     }
-    .photo-badge.after { background: rgba(24,128,56,0.85); }
+    .photo-badge.after { background: rgba(24,128,56,0.88); }
+    .photo-count {
+      position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.68);
+      color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 10px;
+    }
 
     .card-body { padding: 14px; flex: 1; display: flex; flex-direction: column; }
     .meta-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 12px; }
@@ -145,6 +152,22 @@
     return Math.max(0, Math.floor((d2 - d1) / 86400000));
   }
 
+  // 建立支援多張左右滑動的照片軌道
+  function buildStripHtml(photos, badgeText, isAfter) {
+    if (!photos || photos.length === 0) return "";
+    return `
+      <div class="photo-strip">
+        <span class="photo-badge ${isAfter ? 'after' : ''}">${badgeText}</span>
+        ${photos.map((ph, idx) => `
+          <a href="${ph.orig}" target="_blank">
+            <img src="${ph.thumb}" alt="${badgeText} ${idx + 1}">
+            ${photos.length > 1 ? `<span class="photo-count">${idx + 1}/${photos.length}（左右滑）</span>` : ''}
+          </a>
+        `).join('')}
+      </div>
+    `;
+  }
+
   function render() {
     const kw = document.getElementById('kw').value.trim().toLowerCase();
     let list = allPoints.filter(p => {
@@ -155,7 +178,6 @@
       return matchStatus && matchCat && matchKw;
     });
 
-    // 待改善案件預設依日期由舊到新排序（逾期最久的排最前面）
     if (selectedStatus === "缺失待改善") {
       list.sort((a, b) => new Date(a.date) - new Date(b.date));
     }
@@ -172,28 +194,15 @@
       const closeUrl = CLOSE_FORM_URL_PREFIX + encodeURIComponent(p.caseId);
       const days = calcDays(p.date, isDone ? p.doneDate : null);
 
-      const beforeImg = (p.photos && p.photos[0]) ? p.photos[0] : null;
-      const afterImg = (p.afterPhotos && p.afterPhotos[0]) ? p.afterPhotos[0] : null;
-
-      let photoHtml = "";
-      if (isDone && beforeImg && afterImg) {
-        photoHtml = `
-          <div class="photo-compare">
-            <a class="photo-box" href="${beforeImg.orig}" target="_blank">
-              <img src="${beforeImg.thumb}" alt="改善前"><span class="photo-badge">改善前</span>
-            </a>
-            <a class="photo-box" href="${afterImg.orig}" target="_blank">
-              <img src="${afterImg.thumb}" alt="改善後"><span class="photo-badge after">改善後</span>
-            </a>
-          </div>`;
-      } else if (beforeImg) {
-        photoHtml = `
-          <div class="photo-compare">
-            <a class="photo-box" href="${beforeImg.orig}" target="_blank">
-              <img src="${beforeImg.thumb}" alt="缺失現況"><span class="photo-badge">缺失現況</span>
-            </a>
-          </div>`;
-      }
+      const hasAfter = isDone && p.afterPhotos && p.afterPhotos.length > 0;
+      const photoHtml = hasAfter
+        ? `<div class="photo-compare">
+             ${buildStripHtml(p.photos, "改善前", false)}
+             ${buildStripHtml(p.afterPhotos, "改善後", true)}
+           </div>`
+        : `<div class="photo-compare">
+             ${buildStripHtml(p.photos, "缺失現況", false)}
+           </div>`;
 
       return `
         <div class="card">
