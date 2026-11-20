@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>現場勘查與設施照片即時圖台</title>
+  <title>現場勘查與改善追蹤圖台</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", sans-serif; background: #f0f2f5; color: #222; }
@@ -13,57 +13,76 @@
     }
     .header-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
     .header h1 { margin: 0; font-size: 18px; }
-    .badge { background: rgba(255,255,255,0.25); padding: 3px 10px; border-radius: 12px; font-size: 13px; font-weight: bold; }
     .search-box { padding: 7px 12px; border: none; border-radius: 6px; font-size: 14px; flex: 1; min-width: 160px; }
     .btn-sync {
       background: #fff; color: #1a73e8; border: none; border-radius: 6px;
       padding: 7px 12px; font-weight: bold; cursor: pointer; font-size: 14px;
     }
+    /* 第一層：狀態切換 Tab */
+    .status-tabs { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+    .tab-btn {
+      background: rgba(255,255,255,0.16); color: #fff; border: none; border-radius: 8px;
+      padding: 6px 14px; font-size: 14px; font-weight: bold; cursor: pointer;
+    }
+    .tab-btn.active { background: #fff; color: #1a73e8; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+    .tab-btn.active.pending { color: #d93025; }
+    .tab-btn.active.done { color: #188038; }
+
+    /* 第二層：工程類別列 */
     .cat-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
     .cat-btn {
       background: rgba(255,255,255,0.18); color: #fff; border: 1px solid rgba(255,255,255,0.4);
       border-radius: 16px; padding: 4px 12px; font-size: 13px; cursor: pointer; white-space: nowrap;
     }
     .cat-btn.active { background: #fff; color: #1a73e8; font-weight: bold; border-color: #fff; }
-    .container { max-width: 1200px; margin: 16px auto; padding: 0 16px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 16px; }
+
+    .container { max-width: 1280px; margin: 16px auto; padding: 0 16px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
     .card {
       background: #fff; border-radius: 10px; overflow: hidden;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; flex-direction: column;
     }
-    .photo-strip {
-      display: flex; overflow-x: auto; scroll-snap-type: x mandatory; background: #eee; position: relative;
+    .photo-compare { display: flex; gap: 2px; background: #ddd; }
+    .photo-box { flex: 1; position: relative; min-width: 0; }
+    .photo-box img { width: 100%; height: 210px; object-fit: cover; display: block; }
+    .photo-badge {
+      position: absolute; top: 8px; left: 8px; padding: 2px 8px; border-radius: 4px;
+      font-size: 12px; font-weight: bold; color: #fff; background: rgba(217,48,37,0.85);
     }
-    .photo-strip a { flex: 0 0 100%; scroll-snap-align: start; display: block; position: relative; }
-    .photo-strip img { width: 100%; height: 215px; object-fit: cover; display: block; }
-    .photo-count {
-      position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.65);
-      color: #fff; font-size: 12px; padding: 2px 8px; border-radius: 10px;
-    }
+    .photo-badge.after { background: rgba(24,128,56,0.85); }
+
     .card-body { padding: 14px; flex: 1; display: flex; flex-direction: column; }
+    .meta-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 12px; }
+    .case-id { font-weight: bold; color: #5f6368; }
+    .status-pill { padding: 2px 8px; border-radius: 12px; font-weight: bold; }
+    .pill-pending { background: #fce8e6; color: #c5221f; }
+    .pill-done { background: #e6f4ea; color: #137333; }
+
     .card-header-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
     .card-title { font-size: 16px; font-weight: bold; color: #1a73e8; margin: 0; }
-    .cat-tag {
-      background: #e8f0fe; color: #1967d2; font-size: 12px; font-weight: bold;
-      padding: 2px 8px; border-radius: 6px; white-space: nowrap;
-    }
+    .cat-tag { background: #e8f0fe; color: #1967d2; font-size: 12px; font-weight: bold; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
     .row { font-size: 13px; margin-bottom: 5px; line-height: 1.5; }
     .label { font-weight: bold; color: #555; }
-    .map-link {
-      margin-top: auto; display: block; text-align: center; background: #34a853; color: #fff;
-      text-decoration: none; padding: 9px; border-radius: 6px; font-weight: bold; font-size: 14px;
+    .after-box { background: #f1f8f4; border-left: 3px solid #188038; padding: 6px 10px; border-radius: 4px; margin: 6px 0 10px; font-size: 13px; }
+
+    .btn-group { margin-top: auto; display: flex; gap: 8px; padding-top: 8px; }
+    .btn-action {
+      flex: 1; text-align: center; text-decoration: none; padding: 9px 6px;
+      border-radius: 6px; font-weight: bold; font-size: 13px; color: #fff;
     }
+    .btn-map { background: #34a853; }
+    .btn-close { background: #ea4335; }
   </style>
 </head>
 <body>
 
 <div class="header">
   <div class="header-top">
-    <h1>📍 現場勘查即時圖台</h1>
-    <span class="badge" id="status">讀取中...</span>
-    <input type="text" class="search-box" id="kw" placeholder="搜尋說明、位置或拍攝日期..." oninput="render()">
+    <h1>📍 現場勘查與改善追蹤圖台</h1>
+    <input type="text" class="search-box" id="kw" placeholder="搜尋案件編號、說明或位置..." oninput="render()">
     <button class="btn-sync" onclick="loadData()">🔄 立即同步</button>
   </div>
+  <div class="status-tabs" id="statusTabs"></div>
   <div class="cat-bar" id="catBar"></div>
 </div>
 
@@ -73,29 +92,40 @@
 
 <script>
   const GAS_URL = "https://script.google.com/macros/s/AKfycbwCRRutky3s005vMyGbJCeSg5q8OtKu_qTBXqtWDHHehR8yKGfuQ-E2OXsaJP63MJOVrQ/exec";
+  // 請將下方換成您的「改善結案表單」預填連結前綴（保留到 = 號為止）
+  const CLOSE_FORM_URL_PREFIX = "https://docs.google.com/forms/d/e/1FAIpQLScNu0FHS4kpSa2fvYIattrWfDGEBMFuffey1exNbuqv_EIdRg/viewform?usp=pp_url&entry.402930155=";
 
   let allPoints = [];
+  let selectedStatus = "缺失待改善";
   let selectedCat = "全部";
 
   async function loadData() {
-    const status = document.getElementById('status');
-    status.innerText = "同步中...";
+    document.getElementById('grid').innerHTML = "<p>資料同步中...</p>";
     try {
       const res = await fetch(GAS_URL + "?action=data");
       const json = await res.json();
       if (json.status === "ok") {
         allPoints = json.points || [];
-        buildCategoryButtons();
+        buildTabsAndCats();
         render();
       } else {
-        status.innerText = "讀取錯誤：" + json.message;
+        document.getElementById('grid').innerHTML = "<p>讀取錯誤：" + esc(json.message) + "</p>";
       }
     } catch (err) {
-      status.innerText = "連線異常";
+      document.getElementById('grid').innerHTML = "<p>連線異常，請確認網路或部署權限。</p>";
     }
   }
 
-  function buildCategoryButtons() {
+  function buildTabsAndCats() {
+    const pendingCount = allPoints.filter(p => p.status !== "改善完成").length;
+    const doneCount = allPoints.filter(p => p.status === "改善完成").length;
+
+    document.getElementById('statusTabs').innerHTML = `
+      <button class="tab-btn pending ${selectedStatus === '缺失待改善' ? 'active' : ''}" onclick="selectStatus('缺失待改善')">🔴 缺失待改善 (${pendingCount})</button>
+      <button class="tab-btn done ${selectedStatus === '改善完成' ? 'active' : ''}" onclick="selectStatus('改善完成')">🟢 改善完成 (${doneCount})</button>
+      <button class="tab-btn ${selectedStatus === '全部' ? 'active' : ''}" onclick="selectStatus('全部')">📋 全部案件 (${allPoints.length})</button>
+    `;
+
     const preset = ["全部", "橋梁", "綠美化", "路容", "交通(標誌牌面)", "交通(標線)", "照明", "邊坡", "排水", "坑洞", "公路養護", "其他"];
     const dynamicCats = [...new Set(allPoints.map(p => p.category).filter(c => c && !preset.includes(c)))];
     const cats = [...preset, ...dynamicCats];
@@ -105,64 +135,97 @@
     ).join('');
   }
 
-  function selectCat(cat) {
-    selectedCat = cat;
-    buildCategoryButtons();
-    render();
+  function selectStatus(st) { selectedStatus = st; buildTabsAndCats(); render(); }
+  function selectCat(cat) { selectedCat = cat; buildTabsAndCats(); render(); }
+
+  function calcDays(d1Str, d2Str) {
+    const d1 = new Date(d1Str);
+    const d2 = d2Str ? new Date(d2Str) : new Date();
+    if (isNaN(d1) || isNaN(d2)) return 0;
+    return Math.max(0, Math.floor((d2 - d1) / 86400000));
   }
 
   function render() {
     const kw = document.getElementById('kw').value.trim().toLowerCase();
-    const list = allPoints.filter(p => {
+    let list = allPoints.filter(p => {
+      const isDone = p.status === "改善完成";
+      const matchStatus = (selectedStatus === "全部") || (selectedStatus === "改善完成" ? isDone : !isDone);
       const matchCat = (selectedCat === "全部") || (p.category === selectedCat);
-      const matchKw = !kw || (p.desc + p.date + p.address + p.category).toLowerCase().includes(kw);
-      return matchCat && matchKw;
+      const matchKw = !kw || (p.caseId + p.desc + p.address + p.category + p.afterDesc).toLowerCase().includes(kw);
+      return matchStatus && matchCat && matchKw;
     });
 
-    document.getElementById('status').innerText = `共 ${list.length} 筆`;
-    const grid = document.getElementById('grid');
+    // 待改善案件預設依日期由舊到新排序（逾期最久的排最前面）
+    if (selectedStatus === "缺失待改善") {
+      list.sort((a, b) => new Date(a.date) - new Date(b.date));
+    }
 
+    const grid = document.getElementById('grid');
     if (list.length === 0) {
-      grid.innerHTML = "<p>此分類目前沒有巡檢紀錄。</p>";
+      grid.innerHTML = "<p>目前沒有符合條件的案件。</p>";
       return;
     }
 
     grid.innerHTML = list.map(p => {
+      const isDone = p.status === "改善完成";
       const gmapUrl = `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lon}`;
-      const photos = p.photos || [];
-      const photoHtml = photos.length > 0 ? `
-        <div class="photo-strip">
-          ${photos.map((ph, idx) => `
-            <a href="${ph.orig}" target="_blank">
-              <img src="${ph.thumb}" alt="現場照片 ${idx + 1}">
-              ${photos.length > 1 ? `<span class="photo-count">照片 ${idx + 1} / ${photos.length}（左右滑動）</span>` : ''}
+      const closeUrl = CLOSE_FORM_URL_PREFIX + encodeURIComponent(p.caseId);
+      const days = calcDays(p.date, isDone ? p.doneDate : null);
+
+      const beforeImg = (p.photos && p.photos[0]) ? p.photos[0] : null;
+      const afterImg = (p.afterPhotos && p.afterPhotos[0]) ? p.afterPhotos[0] : null;
+
+      let photoHtml = "";
+      if (isDone && beforeImg && afterImg) {
+        photoHtml = `
+          <div class="photo-compare">
+            <a class="photo-box" href="${beforeImg.orig}" target="_blank">
+              <img src="${beforeImg.thumb}" alt="改善前"><span class="photo-badge">改善前</span>
             </a>
-          `).join('')}
-        </div>
-      ` : '';
+            <a class="photo-box" href="${afterImg.orig}" target="_blank">
+              <img src="${afterImg.thumb}" alt="改善後"><span class="photo-badge after">改善後</span>
+            </a>
+          </div>`;
+      } else if (beforeImg) {
+        photoHtml = `
+          <div class="photo-compare">
+            <a class="photo-box" href="${beforeImg.orig}" target="_blank">
+              <img src="${beforeImg.thumb}" alt="缺失現況"><span class="photo-badge">缺失現況</span>
+            </a>
+          </div>`;
+      }
 
       return `
         <div class="card">
           ${photoHtml}
           <div class="card-body">
+            <div class="meta-top">
+              <span class="case-id">#${esc(p.caseId)}</span>
+              <span class="status-pill ${isDone ? 'pill-done' : 'pill-pending'}">
+                ${isDone ? `✅ 已結案（歷時 ${days} 天）` : `🔴 待改善・已歷時 ${days} 天`}
+              </span>
+            </div>
             <div class="card-header-row">
               <div class="card-title">${esc(p.desc)}</div>
               <span class="cat-tag">${esc(p.category)}</span>
             </div>
             <div class="row"><span class="label">🗺️ 位置：</span>${esc(p.address)}</div>
-            <div class="row"><span class="label">🌐 座標：</span>${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}</div>
-            <div class="row"><span class="label">📅 拍攝日期：</span>${esc(p.date)}</div>
-            <a class="map-link" href="${gmapUrl}" target="_blank">🗺️ 在 Google 地圖開啟定位</a>
+            <div class="row"><span class="label">📅 發現日期：</span>${esc(p.date)}</div>
+            ${isDone ? `<div class="after-box"><b>改善說明：</b>${esc(p.afterDesc || '已完成改善')}<br><b>完成日期：</b>${esc(p.doneDate)}</div>` : ''}
+            <div class="btn-group">
+              <a class="btn-action btn-map" href="${gmapUrl}" target="_blank">🗺️ 地圖導航</a>
+              ${!isDone ? `<a class="btn-action btn-close" href="${closeUrl}" target="_blank">📤 回報改善完成</a>` : ''}
+            </div>
           </div>
         </div>
       `;
     }).join('');
   }
 
-function esc(s) {
+  function esc(s) {
     const d = document.createElement('div');
     d.textContent = String(s || "");
-    return d.innerHTML.replace(/"/g, String.fromCharCode(34));
+    return d.innerHTML.replace(/"/g, String.fromCharCode(38) + "quot;");
   }
 
   loadData();
